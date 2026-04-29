@@ -1,0 +1,1 @@
+{{ dbt_profiler.get_profile(relation=source('transjakarta', 'transjakarta_raw_full')) }}
