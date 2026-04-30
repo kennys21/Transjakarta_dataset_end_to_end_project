@@ -4,7 +4,21 @@ WITH raw_data AS (
 
 renamed_and_cleaned AS (
     SELECT
+
+    transID AS transaction_id,
     payCardID AS card_id,
+    payCardBank AS card_bank_name,
+    payCardName AS card_holder_name,
+    payCardSex AS customer_gender,
+    payCardBirthdate as customer_birthdate,
+    payAmount as payment_amount,
+
+    CAST(tapInStopsLat AS DOUBLE) AS tap_in_latitude,
+    CAST(tapInStopsLon AS DOUBLE) AS tap_in_longitude,
+
+    CAST(tapOutStopsLat AS DOUBLE) AS tap_out_latitude,
+    CAST(tapOutStopsLon AS DOUBLE) AS tap_out_longitude,
+
     COALESCE(corridorName, MAX(corridorName) OVER (PARTITION BY corridorID)) AS temp_corridor_name,
     COALESCE(corridorID, MAX(corridorID) OVER (PARTITION BY corridorName)) AS temp_corridor_id,
 
@@ -42,7 +56,19 @@ deduplicated AS (
 
 final_cleanup AS (
     SELECT
+        transaction_id,
         card_id,
+        card_bank_name,
+        card_holder_name,
+        customer_gender,
+        customer_birthdate,
+        payment_amount,
+
+        tap_in_latitude,
+        tap_in_longitude,
+
+        tap_out_latitude,
+        tap_out_longitude,
         
         
         COALESCE(temp_corridor_name, 'Unknown Route') AS corridor_name,
