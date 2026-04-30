@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: stg_transjakarta
+    description: "Cleaned Silver layer for all TransJakarta table data. The final checkpoint before Gold."
+    columns:
+      # 1. The Primary Key (Must be flawless if error appear in this column, pipeline must be stopped)
+      - name: transaction_id
+        description: "The unique transaction ID for the trip."
+        tests:
+          - unique:
+              config:
+                severity: error
+                store_failures: true 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+      
+      - name: card_id
+        description: "The unique card id for every customer use in trip."
+        tests:
+          - unique:
+              config:
+                severity: error
+                store_failures: true 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+      
+      - name: payment_amount
+        description: "The amount of money user pay when using transjakarta"
+        tests: 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+
+      # 2. The warnings columns, if there error, then just give warning
+      - name: card_bank_name
+        description: "The card bank of customer"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+                store_failures: true
+        
+      - name: customer_gender
+        description: "The gender of customer"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+                store_failures: true
+        
+
+      # 3. The Coordinates (Checking for those Null Island ghosts we fixed)
+      - name: tap_in_station_id
+        description: "The ID of the station where they boarded."
+        tests:
+          - not_null:
+              config:
+                severity: warn
+                warn_if: "> 0"
+                error_if: "> 1000"
+
+      # 4. The Business Logic Rules
+      - name: direction
+        description: "Bus direction. Usually 0 or 1. Let's catch if the machine sends a 9."
+        tests:
+          - accepted_values:
+              values: ['0', '1']
+              config:
+                severity: warn
+                warn_if: "> 0"
+                error_if: "> 500"
