@@ -25,6 +25,13 @@ models:
                 severity: error
                 store_failures: true
       
+      - name: payment_amount
+        description: "The amount of money user pay when using transjakarta"
+        tests: 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
 
       # 2. The warnings columns, if there error, then just give warning
       - name: card_bank_name
