@@ -18,8 +18,7 @@ models:
                 store_failures: true
       
       - name: card_id
-        description: "The unique card id for every customer use in trip. 
-                      no card use means no trip ever happen"
+        description: "The unique card id for every customer use in trip. no card use means no trip ever happen"
         tests:
           - not_null:
               config:
@@ -47,7 +46,8 @@ models:
         description: "Used for Bus Pink planning. Mostly null due to unregistered cards."
         tests:
           - accepted_values:
-              values: ['M', 'F']
+              arguments: 
+                values: ['M', 'F'] 
               config:
                 # It only runs the test IF the gender is not null so any value except M and F got warn.
                 where: "customer_gender IS NOT NULL"

@@ -11,7 +11,7 @@ renamed_and_cleaned AS (
     payCardName AS card_holder_name,
     payCardSex AS customer_gender,
     payCardBirthdate as customer_birthdate,
-    payAmount as payment_amount,
+    COALESCE(CAST(payAmount AS INT), 0) AS payment_amount,
 
     CAST(tapInStopsLat AS DOUBLE) AS tap_in_latitude,
     CAST(tapInStopsLon AS DOUBLE) AS tap_in_longitude,
