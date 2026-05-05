@@ -1,0 +1,5 @@
+packages:
+- package: data-mie/dbt_profiler
+  name: dbt_profiler
+  version: 1.0.0
+sha1_hash: faa45954469dd17a50aa633cc04b9cb32aacae19

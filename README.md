@@ -1,8 +1,13 @@
+<!-- ================================================================= -->
+<!-- FILE: README.md                                                   -->
+<!-- ================================================================= -->
+
 # TransJakarta Public Transport Pipeline
-### End-to-End Medallion Architecture on Databricks
+### End-to-End Medallion Architecture (PySpark + dbt + Databricks)
 
 ![Databricks](https://img.shields.io/badge/Databricks-FF3621?style=flat&logo=databricks&logoColor=white)
 ![PySpark](https://img.shields.io/badge/PySpark-E25A1C?style=flat&logo=apachespark&logoColor=white)
+![dbt](https://img.shields.io/badge/dbt-FF694B?style=flat&logo=dbt&logoColor=white)
 ![Delta Lake](https://img.shields.io/badge/Delta_Lake-00ADD8?style=flat)
 ![Unity Catalog](https://img.shields.io/badge/Unity_Catalog-1E88E5?style=flat)
 
@@ -10,31 +15,33 @@
 
 ## Overview
 
-This project builds a production-grade data pipeline for TransJakarta — Jakarta's public Bus Rapid Transit (BRT) system, one of the largest in Southeast Asia. The dataset contains passenger tap-in and tap-out records capturing every journey made across the network.
+This project builds a production-grade data pipeline for TransJakarta — Jakarta's public Bus Rapid Transit (BRT) system. The dataset contains millions of passenger tap-in and tap-out records, capturing journey data across the network.
 
-The pipeline follows the **Medallion Architecture** (Bronze → Silver → Gold) implemented entirely on **Databricks** using **PySpark** and **Delta Lake**, with **Unity Catalog** managing the data governance layer. The end result is an analytics-ready Gold layer that answers real operational questions about the TransJakarta network.
+The pipeline implements a hybrid **Medallion Architecture**. **PySpark** handles the heavy lifting of raw ingestion and structural data quality (Bronze → Silver), while **dbt (data build tool)** takes over to engineer a Kimball-style Star Schema for the analytical Gold layer. The entire ecosystem is hosted on **Databricks** using **Delta Lake**, with **Unity Catalog** governing the assets. 
+
+This architecture guarantees that the final reporting layer is not just clean, but fully tested, documented, and optimized for BI workloads.
 
 ---
 
 ## Architecture
 
-```
+```text
 Raw CSV (Kaggle)
       │
       ▼
 ┌─────────────┐
-│   BRONZE    │  Raw ingestion — data landed as-is into Delta
+│   BRONZE    │  PySpark: Raw ingestion — data landed as-is into Delta
 └──────┬──────┘
        │
        ▼
-┌─────────────┐  Schema enforcement, null handling,
-│   SILVER    │  deduplication, quality flagging,
-└──────┬──────┘  audit metadata
+┌─────────────┐  PySpark: Schema enforcement, null handling,
+│   SILVER    │  deduplication, quality flagging
+└──────┬──────┘  
        │
        ▼
-┌─────────────┐  Business logic, journey enrichment,
-│    GOLD     │  aggregations, analytics-ready tables
-└──────┬──────┘
+┌─────────────┐  dbt: Dimensional modeling (Star Schema)
+│    GOLD     │  fct_transaction + dim_station, dim_date, dim_cards
+└──────┬──────┘  Rigorous YAML testing (not_null, unique, relationships)
        │
        ▼
 ┌─────────────┐
@@ -48,11 +55,11 @@ Raw CSV (Kaggle)
 
 | Tool | Purpose |
 |---|---|
-| Databricks | Cloud data platform and compute |
-| PySpark | Distributed data processing |
-| Delta Lake | ACID-compliant storage format |
-| Unity Catalog | Data governance and three-part naming |
-| Python | Pipeline scripting |
+| **Databricks** | Cloud data platform and compute cluster |
+| **PySpark** | Distributed data processing (Bronze/Silver layers) |
+| **dbt Core** | Data transformation, dimensional modeling, and testing (Gold layer) |
+| **Delta Lake** | ACID-compliant storage format |
+| **Unity Catalog** | Data governance and three-part naming |
 
 ---
 
@@ -60,149 +67,303 @@ Raw CSV (Kaggle)
 
 **Source**: [TransJakarta Dataset — Kaggle](https://www.kaggle.com/datasets/dikisahkan/transjakarta-transportation-transaction)
 
-**Description**: Passenger tap-in/tap-out records from the TransJakarta BRT network for April 2023. Each row represents one journey attempt, containing passenger info, corridor details, station origin/destination, timestamps, and payment amount.
-
-**Key columns**: `transID`, `payCardID`, `corridorID`, `corridorName`, `tapInStops`, `tapInStopsName`, `tapOutStops`, `tapOutStopsName`, `tapInTime`, `tapOutTime`, `payAmount`
+**Description**: Passenger tap-in/tap-out records from the TransJakarta BRT network. Each row represents one journey attempt, containing passenger info, corridor details, station origin/destination, timestamps, and payment amount.
 
 ---
 
 ## Pipeline Layers
 
-### Bronze — Raw Ingestion
+### 🥉 Bronze — Raw Ingestion (PySpark)
+Lands the raw CSV data into a Delta table with zero transformation. Preserves the source data exactly as received — no filtering, no cleaning, no business logic.
+- **Output**: `transjakarta_dataset.bronze.transjakarta_raw`
 
-The Bronze layer lands the raw CSV data into a Delta table with zero transformation. The goal is to preserve the source data exactly as received — no filtering, no cleaning, no business logic.
+### 🥈 Silver — Data Quality (PySpark)
+Applies structural data quality. Silver makes data trustworthy, it does not make business decisions.
+- Schema enforcement and datatype casting.
+- Null handling and forward-filling via window functions.
+- Deduplication on `transID`.
+- Unresolvable records (e.g., missing tap-outs) are flagged, never dropped, preserving full data lineage.
+- **Output**: `transjakarta_dataset.silver.transjakarta_cleaned`
 
-**What happens here:**
-- CSV ingested from source
-- Written to Delta with schema inference
-- Audit columns added: `ingestion_timestamp`, `source_file`
+### 🥇 Gold — The Star Schema (dbt)
+The analytical powerhouse of the pipeline. Built using dbt to transform the flat Silver logs into a scalable dimensional model optimized for BI.
 
-**Output table**: `transjakarta_dataset.bronze.transjakarta_raw`
+**Fact Table:**
+- `fct_transaction`: The core event log. Contains measurable metrics (`payment_amount`) and foreign keys linking to dimensions. Implements role-playing dimensions (mapping both `tap_in_id` and `tap_out_id` to the station dimension).
 
----
+**Dimension Tables:**
+- `dim_station`: Master geography list combining all unique tap-in and tap-out locations via `UNION ALL` logic.
+- `dim_cards`: Unique customer transit cards.
+- `dim_date`: Calendar dimension parsed from raw timestamps to pre-calculate business logic (e.g., `is_weekend`).
 
-### Silver — Data Quality
-
-The Silver layer applies structural data quality. The rule here is strict: Silver makes data trustworthy, it does not make business decisions.
-
-**What happens here:**
-- Schema enforcement on all columns
-- Null handling — safe fills applied where possible (e.g. corridor names forward-filled via window functions)
-- Unresolvable records flagged with `data_quality_flag = 'MISSING_TAP_OUT'` — never dropped
-- Deduplication on `transID`
-- Timestamp columns cast to proper `TimestampType`
-- Audit columns added: `silver_processed_at`, `pipeline_version`
-
-**Design decision**: Rows with missing tap-out cannot be resolved at the Silver layer — we don't know the passenger's destination. They are flagged and passed downstream. The decision of what to do with them belongs to Gold.
-
-**Output table**: `transjakarta_dataset.silver.transjakarta_raw`
-
----
-
-### Gold — Business Logic & Aggregations
-
-The Gold layer applies business meaning to the clean Silver data. This is where the pipeline splits into purpose-built tables, each answering a specific operational question.
-
-**Step 1 — Route flagged records**
-
-Silver's `data_quality_flag` column is used to split the data:
-
-```
-Silver data
-    │
-    ├── flag IS NULL     → clean_df  (continues through pipeline)
-    └── flag IS NOT NULL → incomplete_journeys Gold table (parked immediately)
-```
-
-Incomplete journeys are not discarded — they land in their own Gold table for auditability and future analysis.
-
-**Step 2 — Journey enrichment (row-level)**
-
-Applied to `clean_df` — each row gets new columns without changing the grain:
-
-- `journey_status`: `COMPLETE` (all clean records by definition)
-- `journey_duration_seconds`: `(tapOutTime - tapInTime).cast("long")`
-- `journey_duration_minutes`: rounded to 2 decimal places
-- `duration_validity`: flags any negative durations as `INVALID_DURATION`
-
-**Step 3 — Aggregate tables**
-
-Four aggregate tables built from `clean_df`, each at a different grain:
-
-| Table | Grain | Answers |
-|---|---|---|
-| `revenue_daily` | Per day | Total revenue and journey count per day |
-| `route_traffic` | Per day + corridor | Which routes are busiest and when |
-| `traffic_by_day` | Per day of week | Weekly rhythm, weekend vs weekday patterns |
-| `station_footfall` | Per station | Most crowded stations by total tap-in + tap-out |
-
-**Output tables**:
-- `transjakarta_dataset.gold.incomplete_journeys`
-- `transjakarta_dataset.gold.revenue_daily`
-- `transjakarta_dataset.gold.route_traffic`
-- `transjakarta_dataset.gold.traffic_by_day`
-- `transjakarta_dataset.gold.station_footfall`
+**Data Testing & CI/CD:**
+The Gold layer is protected by strict dbt YAML tests:
+- `unique` and `not_null` constraints on all Dimension Primary Keys.
+- `relationships` (Referential Integrity) tests guaranteeing every Fact row connects to a valid Dimension.
+- `accepted_values` checks on demographic data.
 
 ---
 
 ## Analytics
 
-Four dashboards built in Databricks querying Gold tables directly:
+Dashboards built in Databricks querying the dbt Gold tables directly:
 
-| Dashboard | Chart Type | Key Insight |
-|---|---|---|
-| Daily revenue trend | Line chart | Revenue performance over the month |
-![Revenue Daily](assets/screenshots/revenue_daily.png)
+| Dashboard | Key Insight |
+|---|---|
+| **Daily Revenue Trend** | Revenue performance over the month |
+| **Top 10 Busiest Routes** | Which corridors need more bus capacity |
+| **Traffic by Day of Week** | Peak days and weekend vs weekday split |
+| **Busiest Stations** | Stations requiring operational attention |
 
-| Top 10 busiest Route g | Bar chart | Which corridors need more bus capacity |
-![Route Traffic](assets/screenshots/route_traffic.png)
-
-| Traffic by day of week | Grouped bar chart | Peak days and weekend vs weekday split |
-![Traffic by Day](assets/screenshots/traffic_by_day.png)
-
-| Top 10 busiest stations |  bar chart | Stations requiring operational attention |
-![Station Footfall](assets/screenshots/station_footfall.png)
+*(Include your dashboard screenshots in the `/assets/screenshots/` folder)*
 
 ---
 
 ## Project Structure
 
-```
+```text
 transjakarta-pipeline/
 ├── README.md
-├── notebooks/
-│   ├── 01_bronze.py       # Raw ingestion
-│   ├── 02_silver.py       # Data quality layer
-│   └── 03_gold.py         # Business logic and aggregations
-└── assets/
-    └── screenshots/       # Dashboard screenshots
+├── 01_ingesting_to_raw.ipynb      # PySpark Bronze ingestion
+├── 02_raw_to_bronze.ipynb         # PySpark Bronze processing
+├── 03_bronze_to_silver.ipynb      # PySpark Silver cleaning
+├── dbt_project.yml                # dbt configuration
+└── models/
+    ├── staging/
+    │   ├── src_transjakarta.yml   # Source definitions
+    │   └── stg_transjakarta.sql   # Base staging views
+    └── marts/
+        ├── dim_cards.sql          # Dimension: Cards
+        ├── dim_date.sql           # Dimension: Calendar
+        ├── dim_station.sql        # Dimension: Stations
+        ├── fct_transaction.sql    # Fact: Trips
+        └── schema.yml             # dbt Tests & Documentation
 ```
-
----
-
-## Key Design Decisions
-
-**Layer responsibility boundaries are strict.** Silver handles structural data quality — it fills where safe, flags what it can't resolve, and never drops rows. Business logic decisions (what to do with flagged records, how to classify journeys, how to compute fares) belong exclusively in Gold. This separation keeps each layer independently testable and maintainable.
-
-**Incomplete journeys are never dropped.** Records with missing tap-out are flagged in Silver and routed to a dedicated Gold table. This preserves full data lineage and gives analysts visibility into data loss rates across the network.
-
-**Separate aggregate tables per business question.** Each Gold aggregate table has a single, well-defined grain. Mixing aggregations at different grains into one table creates ambiguity and forces downstream consumers to re-aggregate. Purpose-built tables are faster to query and easier to reason about.
-
----
-
-## How to Run
-
-1. Upload the TransJakarta dataset CSV to your Databricks workspace
-2. Create a Unity Catalog with the namespace `transjakarta_dataset`
-3. Run notebooks in order: `01_bronze` → `02_silver` → `03_gold`
-4. Query Gold tables in Databricks SQL to build dashboards
 
 ---
 
 ## Author
 
 **Kennys** — Aspiring Data Engineer based in Jakarta, Indonesia.
-Building production-realistic data pipelines with a long-term goal of ML Engineering.
+Transitioning into MLOps by building production-grade, tested, and scalable data architectures.
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kennys21)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/Kennys1)
+
+
+<!-- ================================================================= -->
+<!-- FILE: models/marts/dim_station.sql                                -->
+<!-- ================================================================= -->
+
+```sql
+WITH all_stations AS (
+    -- The Tap-In Pipe
+    SELECT
+        tap_in_latitude AS station_latitude,
+        tap_in_longitude AS station_longitude,
+        tap_in_id AS station_id,
+        tap_in_name AS station_name,
+        corridor_id,
+        corridor_name
+    FROM {{ ref('stg_transjakarta') }}
+
+    UNION ALL
+
+    -- The Tap-Out Pipe
+    SELECT
+        tap_out_latitude AS station_latitude,
+        tap_out_longitude AS station_longitude,
+        tap_out_id AS station_id,
+        tap_out_name AS station_name,
+        corridor_id,
+        corridor_name
+    FROM {{ ref('stg_transjakarta') }}
+),
+
+deduplicated_station AS (
+    -- The Aggregation Squeeze
+    SELECT
+        station_id,
+        CASE 
+            WHEN station_id = '-1' THEN 'Unknown/Glitch Station'
+            ELSE MAX(station_name) 
+        END AS station_name,
+        MAX(station_latitude) AS station_latitude,
+        MAX(station_longitude) AS station_longitude,
+        MAX(corridor_id) AS corridor_id,
+        MAX(corridor_name) AS corridor_name
+    FROM all_stations
+    WHERE station_id IS NOT NULL
+    GROUP BY station_id
+)
+
+SELECT * FROM deduplicated_station
+```
+
+<!-- ================================================================= -->
+<!-- FILE: models/marts/dim_date.sql                                   -->
+<!-- ================================================================= -->
+
+```sql
+WITH raw_dates AS (
+    SELECT CAST(tap_in_time AS DATE) AS date_day 
+    FROM {{ ref('stg_transjakarta') }}
+    WHERE tap_in_time IS NOT NULL
+
+    UNION 
+
+    SELECT CAST(tap_out_time AS DATE) AS date_day 
+    FROM {{ ref('stg_transjakarta') }}
+    WHERE tap_out_time IS NOT NULL
+)
+
+SELECT
+    date_day AS date_key,
+    YEAR(date_day) AS year,
+    MONTH(date_day) AS month,
+    DAY(date_day) AS day,
+    DATE_FORMAT(date_day, 'EEEE') AS day_name,
+    CASE 
+        WHEN DAYOFWEEK(date_day) IN (1, 7) THEN True 
+        ELSE False 
+    END AS is_weekend
+FROM raw_dates
+WHERE date_day IS NOT NULL
+ORDER BY date_key
+```
+
+<!-- ================================================================= -->
+<!-- FILE: models/marts/fct_transaction.sql                            -->
+<!-- ================================================================= -->
+
+```sql
+WITH final_facts AS (
+    SELECT
+        transaction_id,
+        card_id,
+        CAST(tap_in_time AS DATE) AS date_key,
+        tap_in_id,
+        tap_out_id,
+        customer_gender,
+        CAST(payment_amount AS INT) AS payment_amount
+    FROM {{ ref('stg_transjakarta') }}
+    WHERE transaction_id IS NOT NULL
+)
+
+SELECT * FROM final_facts
+```
+
+<!-- ================================================================= -->
+<!-- FILE: models/marts/schema.yml                                     -->
+<!-- ================================================================= -->
+
+```yaml
+version: 2
+
+models:
+  # --- DIMENSION: CARDS ---
+  - name: dim_cards
+    description: "dimension table for customer cards"
+    columns:
+      - name: card_id
+        description: "the unique card ID for every customer"
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # --- DIMENSION: STATIONS ---
+  - name: dim_station
+    description: "dimension table for every station"
+    columns:
+      - name: station_id
+        description: "the unique station ID for every station"
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # --- DIMENSION: DATES ---
+  - name: dim_date
+    description: "dimension table for dates"
+    columns:
+      - name: date_key
+        description: "the unique day for every data"
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # --- FACT: TRANSACTIONS ---
+  - name: fct_transaction
+    description: "fact table for every trip that happens"
+    columns:
+      - name: transaction_id
+        description: "the transaction ID for every transaction"
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+                
+      - name: customer_gender
+        description: "the gender for every customer"
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['M','F']
+              config: 
+                where: "customer_gender IS NOT NULL"
+                severity: warn
+                store_failures: true
+                
+      - name: tap_in_id
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:
+                to: ref('dim_station')
+                field: station_id
+                
+      - name: tap_out_id
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:
+                to: ref('dim_station')
+                field: station_id
+                
+      - name: date_key
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+                
+      - name: payment_amount
+        tests:
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+```

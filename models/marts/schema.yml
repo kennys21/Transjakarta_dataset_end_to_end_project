@@ -1,0 +1,108 @@
+version: 2
+
+models:
+  # dim_cards testing
+  - name: dim_cards
+    description: dimension table for customer cards
+    columns:
+      - name: card_id
+        description: the unique card ID for every customer
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # dim_station Testing
+  - name: dim_station
+    description: dimension table for every station
+    columns:
+      - name: station_id
+        description: the unique station ID for every station
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # dim_date testing
+  - name: dim_date
+    description: dimension table for dates
+    columns:
+      - name: date_key
+        description: the unique day for every data
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+  
+  # fact_transaction testing
+  - name: fct_transaction
+    description: fact table for every trip that happens
+    columns:
+      - name: transaction_id
+        description: the transaction ID for every transaction
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+                
+      - name: customer_gender
+        description: the gender for every customer
+        tests:
+          - accepted_values:
+              arguments:     # <-- You were right, it goes here
+                values: ['M','F']
+              config: 
+                where: "customer_gender IS NOT NULL"
+                severity: warn
+                store_failures: true
+                
+      - name: tap_in_id
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:     # <-- And it goes here for relations
+                to: ref('dim_station')
+                field: station_id
+                
+      - name: tap_out_id
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:     # <-- And here
+                to: ref('dim_station')
+                field: station_id
+                
+      - name: date_key
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:     # <-- And here
+                to: ref('dim_date')
+                field: date_key
+                
+      - name: payment_amount
+        tests:
+          - not_null:
+              config:
+                severity: error
+                store_failures: true

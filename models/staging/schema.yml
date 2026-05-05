@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: stg_transjakarta
+    description: "Cleaned Silver layer for all TransJakarta table data. The final checkpoint before Gold."
+    columns:
+      # 1. The Primary Key (Must be flawless, if error appear in this column, pipeline must be stopped)
+      - name: transaction_id
+        description: "The unique transaction ID for the trip."
+        tests:
+          - unique:
+              config:
+                severity: error
+                store_failures: true 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+      
+      - name: card_id
+        description: "The unique card id for every customer use in trip. no card use means no trip ever happen"
+        tests:
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+      
+      - name: payment_amount
+        description: "The amount of money user pay when using transjakarta"
+        tests: 
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+
+      # 2. The warnings columns, if there error, then just give warning
+      - name: card_bank_name
+        description: "The card bank of customer"
+        tests:
+          - not_null:
+              config:
+                severity: warn
+                store_failures: true
+        
+      - name: customer_gender
+        description: "Used for Bus Pink planning. Mostly null due to unregistered cards."
+        tests:
+          - accepted_values:
+              arguments: 
+                values: ['M', 'F'] 
+              config:
+                # It only runs the test IF the gender is not null so any value except M and F got warn.
+                where: "customer_gender IS NOT NULL"
+                severity: warn
+                store_failures: true
+        
+
+      
