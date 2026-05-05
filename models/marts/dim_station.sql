@@ -4,6 +4,8 @@ with all_stations as(
         tap_in_longitude as station_longitude,
         tap_in_id as station_id,
         tap_in_name as station_name
+        corridor_id,
+        corridor_name
         
     from {{ref("stg_transjakarta")}}
 
@@ -15,6 +17,8 @@ with all_stations as(
         tap_out_longitude as station_longitude,
         tap_out_id as station_id,
         tap_out_name as station_name
+        corridor_id,
+        corridor_name
     from {{ref("stg_transjakarta")}}
 ),
 deduplicated_station as(
