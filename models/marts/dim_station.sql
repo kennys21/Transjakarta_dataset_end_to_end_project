@@ -24,6 +24,8 @@ deduplicated_station as(
             WHEN station_id = '-1' THEN 'Unknown/Glitch Station'
             ELSE MAX(station_name) 
         END AS station_name,
+        MAX(corridor_id) as corridor_id,
+        MAX(corridor_name) as corridor_name,
         MAX(station_latitude) AS station_latitude,
         MAX(station_longitude) AS station_longitude
     FROM all_stations
