@@ -115,7 +115,7 @@ Dashboards built in Databricks querying the dbt Gold tables directly:
 | **Traffic by Day of Week** | Peak days and weekend vs weekday split |
 | **Busiest Stations** | Stations requiring operational attention |
 
-*(Include your dashboard screenshots in the `/assets/screenshots/` folder)*
+
 
 ---
 
