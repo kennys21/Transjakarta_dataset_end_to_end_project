@@ -57,8 +57,8 @@ deduplicated AS (
 final_cleanup AS (
     SELECT
 
-        CAST(transaction_id AS STRING) AS transaction_id,
-        CAST(card_id AS STRING) AS card_id,
+        CAST(transaction_id AS VARCHAR) AS transaction_id,
+        CAST(card_id AS VARCHAR) AS card_id,
         CAST(customer_gender AS STRING) AS customer_gender,
 
         CAST(card_bank_name AS STRING) AS card_bank_name,
@@ -76,19 +76,19 @@ final_cleanup AS (
         
         
         COALESCE(CAST(temp_corridor_name AS STRING) , 'Unknown Route') AS corridor_name,
-        COALESCE(CAST(temp_corridor_id AS INT), '-1') AS corridor_id,
+        COALESCE(CAST(temp_corridor_id AS VARCHAR), '-1') AS corridor_id,
         
 
         CAST(direction AS INT) AS direction,
 
         COALESCE(CAST(temp_tap_in_name AS STRING), 'Unknown Tap In Name') AS tap_in_name,
-        COALESCE(CAST(temp_tap_in_id AS INT), '-1') AS tap_in_id,
+        COALESCE(CAST(temp_tap_in_id AS VARCHAR), '-1') AS tap_in_id,
 
         CAST(tap_in_sequence AS INT) AS tap_in_sequence,
         CAST(tap_out_sequence AS INT) AS tap_out_sequence,
 
         COALESCE(CAST(temp_tap_out_name AS STRING), 'Unknown Tap out Name') AS tap_out_name,
-        COALESCE(CAST(temp_tap_out_id AS INT), '-1') AS tap_out_id,
+        COALESCE(CAST(temp_tap_out_id AS VARCHAR), '-1') AS tap_out_id,
 
         CAST(tap_in_timestamp AS TIMESTAMP) AS tap_in_timestamp,
         CAST(tap_out_timestamp AS TIMESTAMP) AS tap_out_timestamp
