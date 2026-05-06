@@ -1,7 +1,3 @@
-<!-- ================================================================= -->
-<!-- FILE: README.md                                                   -->
-<!-- ================================================================= -->
-
 # TransJakarta Public Transport Pipeline
 ### End-to-End Medallion Architecture (PySpark + dbt + Databricks)
 
@@ -17,14 +13,13 @@
 
 This project builds a production-grade data pipeline for TransJakarta — Jakarta's public Bus Rapid Transit (BRT) system. The dataset contains millions of passenger tap-in and tap-out records, capturing journey data across the network.
 
-The pipeline implements a hybrid **Medallion Architecture**. **PySpark** handles the heavy lifting of raw ingestion and structural data quality (Bronze → Silver), while **dbt (data build tool)** takes over to engineer a Kimball-style Star Schema for the analytical Gold layer. The entire ecosystem is hosted on **Databricks** using **Delta Lake**, with **Unity Catalog** governing the assets. 
+The pipeline implements a hybrid **Medallion Architecture**. **PySpark** handles the initial raw data ingestion into the cloud (Bronze), while **dbt (data build tool)** manages data standardization (Silver) and engineers a Kimball-style Star Schema for the analytical reporting layer (Gold). The entire ecosystem is hosted on **Databricks** using **Delta Lake**, with **Unity Catalog** governing the assets. 
 
 This architecture guarantees that the final reporting layer is not just clean, but fully tested, documented, and optimized for BI workloads.
 
 ---
 
 ## Architecture
-
 ```text
 Raw CSV (Kaggle)
       │
@@ -34,8 +29,8 @@ Raw CSV (Kaggle)
 └──────┬──────┘
        │
        ▼
-┌─────────────┐  PySpark: Schema enforcement, null handling,
-│   SILVER    │  deduplication, quality flagging
+┌─────────────┐  dbt: Data standardization (Staging)
+│   SILVER    │  Schema enforcement, data type casting, column renaming
 └──────┬──────┘  
        │
        ▼
@@ -56,8 +51,8 @@ Raw CSV (Kaggle)
 | Tool | Purpose |
 |---|---|
 | **Databricks** | Cloud data platform and compute cluster |
-| **PySpark** | Distributed data processing (Bronze/Silver layers) |
-| **dbt Core** | Data transformation, dimensional modeling, and testing (Gold layer) |
+| **PySpark** | Distributed data ingestion (Bronze layer) |
+| **dbt Core** | Data transformation, staging (Silver layer), dimensional modeling, and testing (Gold layer) |
 | **Delta Lake** | ACID-compliant storage format |
 | **Unity Catalog** | Data governance and three-part naming |
 
@@ -74,33 +69,31 @@ Raw CSV (Kaggle)
 ## Pipeline Layers
 
 ### 🥉 Bronze — Raw Ingestion (PySpark)
-Lands the raw CSV data into a Delta table with zero transformation. Preserves the source data exactly as received — no filtering, no cleaning, no business logic.
+Extracts the raw CSV data and loads it into a Delta table with zero transformation. This layer acts as an immutable historical archive, preserving the source data exactly as received.
 - **Output**: `transjakarta_dataset.bronze.transjakarta_raw`
 
-### 🥈 Silver — Data Quality (PySpark)
-Applies structural data quality. Silver makes data trustworthy, it does not make business decisions.
-- Schema enforcement and datatype casting.
-- Null handling and forward-filling via window functions.
-- Deduplication on `transID`.
-- Unresolvable records (e.g., missing tap-outs) are flagged, never dropped, preserving full data lineage.
-- **Output**: `transjakarta_dataset.silver.transjakarta_cleaned`
+### 🥈 Silver — Data Standardization (dbt Staging)
+Applies structural data quality and standardization via dbt staging models. This layer acts as the clean foundation for downstream modeling.
+- Explicit data type casting (e.g., parsing raw strings into `TIMESTAMP` and `DATE` types).
+- Column nomenclature standardization.
+- **Output**: `stg_transjakarta` (dbt staging view)
 
-### 🥇 Gold — The Star Schema (dbt)
-The analytical powerhouse of the pipeline. Built using dbt to transform the flat Silver logs into a scalable dimensional model optimized for BI.
+### 🥇 Gold — The Star Schema (dbt Marts)
+The analytical powerhouse of the pipeline. Built using dbt to transform the flat Silver views into a scalable dimensional model optimized for BI.
 
 **Fact Table:**
-- `fct_transaction`: The core event log. Contains measurable metrics (`payment_amount`) and foreign keys linking to dimensions. Implements role-playing dimensions (mapping both `tap_in_id` and `tap_out_id` to the station dimension).
+- `fct_transaction`: The core event log recording individual transit journeys. Contains measurable metrics (`payment_amount`) and foreign keys. Implements Role-Playing Dimensions by mapping both `tap_in_id` and `tap_out_id` to the station dimension independently.
 
 **Dimension Tables:**
-- `dim_station`: Master geography list combining all unique tap-in and tap-out locations via `UNION ALL` logic.
+- `dim_station`: Master geography dimension constructed using a `UNION ALL` operation to merge all tap-in and tap-out locations. Integrates data quality safeguards to reclassify system glitch IDs into valid "Unknown" rows, preventing data loss.
 - `dim_cards`: Unique customer transit cards.
-- `dim_date`: Calendar dimension parsed from raw timestamps to pre-calculate business logic (e.g., `is_weekend`).
+- `dim_date`: Calendar dimension derived from raw timestamps. Pre-calculates business logic (e.g., `is_weekend`) to eliminate redundant date math in downstream BI dashboards.
 
 **Data Testing & CI/CD:**
-The Gold layer is protected by strict dbt YAML tests:
-- `unique` and `not_null` constraints on all Dimension Primary Keys.
-- `relationships` (Referential Integrity) tests guaranteeing every Fact row connects to a valid Dimension.
-- `accepted_values` checks on demographic data.
+The Gold layer is strictly governed by dbt YAML tests to ensure data integrity:
+- **Primary Key Integrity:** `unique` and `not_null` constraints on all Dimension tables.
+- **Referential Integrity:** `relationships` tests on all Fact table foreign keys to guarantee mapping to valid Dimension records.
+- **Categorical Validation:** `accepted_values` checks on demographic data.
 
 ---
 
@@ -115,24 +108,25 @@ Dashboards built in Databricks querying the dbt Gold tables directly:
 | **Traffic by Day of Week** | Peak days and weekend vs weekday split |
 | **Busiest Stations** | Stations requiring operational attention |
 
-
+*(Include your dashboard screenshots in the `/assets/screenshots/` folder)*
 
 ---
 
-## Project Structure
+## Project Structure & Code
 
+Below is the complete dbt architecture used to build the Gold layer.
+
+### Directory Structure
 ```text
 transjakarta-pipeline/
 ├── README.md
 ├── 01_ingesting_to_raw.ipynb      # PySpark Bronze ingestion
-├── 02_raw_to_bronze.ipynb         # PySpark Bronze processing
-├── 03_bronze_to_silver.ipynb      # PySpark Silver cleaning
 ├── dbt_project.yml                # dbt configuration
 └── models/
     ├── staging/
     │   ├── src_transjakarta.yml   # Source definitions
-    │   └── stg_transjakarta.sql   # Base staging views
-    └── marts/
+    │   └── stg_transjakarta.sql   # Base staging views (Silver Layer)
+    └── marts/                     # Gold Layer
         ├── dim_cards.sql          # Dimension: Cards
         ├── dim_date.sql           # Dimension: Calendar
         ├── dim_station.sql        # Dimension: Stations
@@ -142,19 +136,7 @@ transjakarta-pipeline/
 
 ---
 
-## Author
-
-**Kennys** — Aspiring Data Engineer based in Jakarta, Indonesia.
-Transitioning into MLOps by building production-grade, tested, and scalable data architectures.
-
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kennys21)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/Kennys1)
-
-
-<!-- ================================================================= -->
-<!-- FILE: models/marts/dim_station.sql                                -->
-<!-- ================================================================= -->
-
+### 1. `models/marts/dim_station.sql`
 ```sql
 WITH all_stations AS (
     -- The Tap-In Pipe
@@ -200,10 +182,9 @@ deduplicated_station AS (
 SELECT * FROM deduplicated_station
 ```
 
-<!-- ================================================================= -->
-<!-- FILE: models/marts/dim_date.sql                                   -->
-<!-- ================================================================= -->
+---
 
+### 2. `models/marts/dim_date.sql`
 ```sql
 WITH raw_dates AS (
     SELECT CAST(tap_in_time AS DATE) AS date_day 
@@ -232,10 +213,9 @@ WHERE date_day IS NOT NULL
 ORDER BY date_key
 ```
 
-<!-- ================================================================= -->
-<!-- FILE: models/marts/fct_transaction.sql                            -->
-<!-- ================================================================= -->
+---
 
+### 3. `models/marts/fct_transaction.sql`
 ```sql
 WITH final_facts AS (
     SELECT
@@ -253,10 +233,9 @@ WITH final_facts AS (
 SELECT * FROM final_facts
 ```
 
-<!-- ================================================================= -->
-<!-- FILE: models/marts/schema.yml                                     -->
-<!-- ================================================================= -->
+---
 
+### 4. `models/marts/schema.yml`
 ```yaml
 version: 2
 
@@ -367,3 +346,13 @@ models:
                 severity: error
                 store_failures: true
 ```
+
+---
+
+## Author
+
+**Kennys** — Aspiring Data Engineer based in Tangerang, Indonesia.
+Transitioning into MLOps by building production-grade, tested, and scalable data architectures.
+
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kennys21)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/Kennys1)
