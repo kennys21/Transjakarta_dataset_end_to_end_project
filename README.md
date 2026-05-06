@@ -44,50 +44,6 @@ Raw CSV (Kaggle)
 └─────────────┘  operational business questions
 ```
 
-```mermaid
-flowchart LR
-    %% Data Sources
-    Source[📄 Kaggle CSV]
-    
-    %% Databricks Environment
-    subgraph Databricks [Databricks & Unity Catalog]
-        direction LR
-        
-        Bronze[(🥉 Bronze: Raw Delta)]
-        Silver[(🥈 Silver: Cleaned Delta)]
-        
-        subgraph Gold [🥇 Gold: dbt Star Schema]
-            direction TB
-            FCT[(fct_transaction)]
-            DIM1([dim_station])
-            DIM2([dim_date])
-            DIM3([dim_cards])
-            
-            %% Star Schema Links
-            FCT -.- DIM1
-            FCT -.- DIM2
-            FCT -.- DIM3
-        end
-        
-        %% Internal Data Flow
-        Bronze -- "dbt Staging" --> Silver
-        Silver -- "dbt Modeling" --> FCT
-    end
-    
-    %% Analytics
-    Dashboards[📊 Dashboards]
-    
-    %% External Data Flow
-    Source -- "PySpark Ingestion" --> Bronze
-    Gold -- "Databricks SQL" --> Dashboards
-
-    %% Styling
-    style Bronze fill:#cd7f32,stroke:#333,stroke-width:2px,color:#fff
-    style Silver fill:#c0c0c0,stroke:#333,stroke-width:2px,color:#000
-    style Gold fill:#fff3cd,stroke:#e6b800,stroke-width:2px,color:#000
-    style FCT fill:#ffd700,stroke:#333,stroke-width:2px,color:#000
-    style Databricks fill:#f8f9fa,stroke:#1E88E5,stroke-width:2px,stroke-dasharray: 5 5
-```
 
 ---
 
