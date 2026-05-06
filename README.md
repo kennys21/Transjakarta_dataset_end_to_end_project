@@ -108,7 +108,7 @@ Dashboards built in Databricks querying the dbt Gold tables directly:
 | **Traffic by Day of Week** | Peak days and weekend vs weekday split |
 | **Busiest Stations** | Stations requiring operational attention |
 
-*(Include your dashboard screenshots in the `/assets/screenshots/` folder)*
+
 
 ---
 
@@ -346,6 +346,7 @@ models:
                 severity: error
                 store_failures: true
 ```
+<<<<<<< HEAD
 
 ---
 
@@ -356,3 +357,5 @@ Transitioning into MLOps by building production-grade, tested, and scalable data
 
 [![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kennys21)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/Kennys1)
+=======
+>>>>>>> ee7504b785ab52d5fa685eac8e4383b118de687a
