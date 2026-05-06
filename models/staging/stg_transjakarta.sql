@@ -66,7 +66,7 @@ final_cleanup AS (
     
         CAST(customer_birthdate AS INT) AS customer_birthdate,
         
-        CAST(payment_amount AS INT) AS payment_amount
+        CAST(payment_amount AS INT) AS payment_amount,
 
         CAST(tap_in_latitude AS DOUBLE) AS tap_in_latitude,
         CAST(tap_in_longitude AS DOUBLE) AS tap_in_longitude,
