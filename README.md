@@ -42,6 +42,7 @@ Raw CSV (Kaggle)
 ┌─────────────┐
 │  ANALYTICS  │  Databricks dashboards answering
 └─────────────┘  operational business questions
+```
 
 flowchart LR
     %% Data Sources
@@ -85,8 +86,6 @@ flowchart LR
     style Gold fill:#fff3cd,stroke:#e6b800,stroke-width:2px,color:#000
     style FCT fill:#ffd700,stroke:#333,stroke-width:2px,color:#000
     style Databricks fill:#f8f9fa,stroke:#1E88E5,stroke-width:2px,stroke-dasharray: 5 5
-
-```
 
 ---
 
