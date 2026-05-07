@@ -42,7 +42,9 @@ Raw CSV (Kaggle)
 ┌─────────────┐
 │  ANALYTICS  │  Databricks dashboards answering
 └─────────────┘  operational business questions
+
 ```
+![Transjakarta Architecture](assets/screenshots/Transjakarta_Architecture.png)
 
 ---
 
