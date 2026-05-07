@@ -23,7 +23,7 @@ with all_stations as(
 ),
 deduplicated_station as(
     SELECT
-        station_id,
+        TRIM(station_id) as station_id,
         CASE 
             WHEN station_id = '-1' THEN 'Unknown/Glitch Station'
             ELSE MAX(station_name) 
