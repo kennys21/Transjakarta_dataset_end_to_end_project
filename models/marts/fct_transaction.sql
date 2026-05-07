@@ -6,7 +6,8 @@ with raw_transaction as(
         CAST(payment_amount AS INT) as payment_amount,
         CAST(tap_in_timestamp AS DATE) AS date_key,
         tap_in_id,
-        tap_out_id
+        tap_out_id,
+        corridor_id
     from 
         {{ref("stg_transjakarta")}}
     where 
