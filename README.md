@@ -111,10 +111,10 @@ Dashboards built in Databricks querying the dbt Gold tables directly:
 | **Total Income Weekend vs Weekday** | People Who Go To Work In Weekday Is The Main Source Of Income |
 | **The Busiest Stops** | Stops requiring operational attention Cause Of The Crowd |
 
-![Daily Revenue Trend](assets/screenshot/Daily_Revenue_Trend.png)
-![The Busiest Corridor](assets/screenshot/The_Busiest_Corridor.png)
-![Total Income Weekend vs Weekday](assets/screenshot/Total_Income_Weekend_vs_Weekday.png)
-![The Busiest Stops](assets/screenshot/The_Busiest_Stops.png)
+![Daily Revenue Trend](assets/screenshots/Daily_Revenue_Trend.png)
+![The Busiest Corridor](assets/screenshots/The_Busiest_Corridor.png)
+![Total Income Weekend vs Weekday](assets/screenshots/Total_Income_Weekend_vs_Weekday.png)
+![The Busiest Stops](assets/screenshots/The_Busiest_Stops.png)
 
 ---
 
