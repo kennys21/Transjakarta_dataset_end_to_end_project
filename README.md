@@ -102,7 +102,7 @@ The Gold layer is strictly governed by dbt YAML tests to ensure data integrity:
 
 Dashboards built in Databricks querying the dbt Gold tables directly:
 
-![TransJakarta BI Dashboard](path/to/your/dashboard_screenshot.png)
+
 
 | Dashboard | Key Insight |
 |---|---|
@@ -110,6 +110,11 @@ Dashboards built in Databricks querying the dbt Gold tables directly:
 | **The Busiest Corridor** | Which corridors need more bus capacity |
 | **Total Income Weekend vs Weekday** | People Who Go To Work In Weekday Is The Main Source Of Income |
 | **The Busiest Stops** | Stops requiring operational attention Cause Of The Crowd |
+
+![Daily Revenue Trend](assets/Daily_Revenue_Trend.png)
+![The Busiest Corridor](assets/The_Busiest_Corridor.png)
+![Total Income Weekend vs Weekday](assets/Total_Income_Weekend_vs_Weekday.png)
+![The Busiest Stops](assets/The_Busiest_Stops.png)
 
 ---
 
