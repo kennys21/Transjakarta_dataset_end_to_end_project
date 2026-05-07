@@ -13,7 +13,7 @@
 
 This project builds a production-grade data pipeline for TransJakarta — Jakarta's public Bus Rapid Transit (BRT) system. The dataset contains millions of passenger tap-in and tap-out records, capturing journey data across the network.
 
-The pipeline implements a hybrid **Medallion Architecture**. **PySpark** handles the initial raw data ingestion into the cloud (Bronze), while **dbt (data build tool)** manages data standardization (Silver) and engineers a Kimball-style Star Schema for the analytical reporting layer (Gold). The entire ecosystem is hosted on **Databricks** using **Delta Lake**, with **Unity Catalog** governing the assets. 
+The pipeline implements a hybrid **Medallion Architecture**. **PySpark** handles the initial raw data ingestion into the cloud (Bronze), while **dbt (data build tool)** manages data standardization (Silver) and engineers a fully normalized, Kimball-style Star Schema for the analytical reporting layer (Gold). The entire ecosystem is hosted on **Databricks** using **Delta Lake**, with **Unity Catalog** governing the assets. 
 
 This architecture guarantees that the final reporting layer is not just clean, but fully tested, documented, and optimized for BI workloads.
 
@@ -35,7 +35,7 @@ Raw CSV (Kaggle)
        │
        ▼
 ┌─────────────┐  dbt: Dimensional modeling (Star Schema)
-│    GOLD     │  fct_transaction + dim_station, dim_date, dim_cards
+│    GOLD     │  fct_transaction + dim_station, dim_date, dim_cards, dim_corridor
 └──────┬──────┘  Rigorous YAML testing (not_null, unique, relationships)
        │
        ▼
@@ -43,7 +43,6 @@ Raw CSV (Kaggle)
 │  ANALYTICS  │  Databricks dashboards answering
 └─────────────┘  operational business questions
 ```
-
 
 ---
 
@@ -86,7 +85,8 @@ The analytical powerhouse of the pipeline. Built using dbt to transform the flat
 - `fct_transaction`: The core event log recording individual transit journeys. Contains measurable metrics (`payment_amount`) and foreign keys. Implements Role-Playing Dimensions by mapping both `tap_in_id` and `tap_out_id` to the station dimension independently.
 
 **Dimension Tables:**
-- `dim_station`: Master geography dimension constructed using a `UNION ALL` operation to merge all tap-in and tap-out locations. Integrates data quality safeguards to reclassify system glitch IDs into valid "Unknown" rows, preventing data loss.
+- `dim_station`: Master geography dimension constructed using a `UNION ALL` operation to merge all tap-in and tap-out locations. Kept as a pure geographic entity to prevent cardinality conflicts. Integrates data quality safeguards to reclassify system glitch IDs into valid "Unknown" rows.
+- `dim_corridor`: Normalized route dimension detailing the specific bus lines and transit corridors.
 - `dim_cards`: Unique customer transit cards.
 - `dim_date`: Calendar dimension derived from raw timestamps. Pre-calculates business logic (e.g., `is_weekend`) to eliminate redundant date math in downstream BI dashboards.
 
@@ -102,14 +102,14 @@ The Gold layer is strictly governed by dbt YAML tests to ensure data integrity:
 
 Dashboards built in Databricks querying the dbt Gold tables directly:
 
+![TransJakarta BI Dashboard](path/to/your/dashboard_screenshot.png)
+
 | Dashboard | Key Insight |
 |---|---|
-| **Daily Revenue Trend** | Revenue performance over the month |
-| **Top 10 Busiest Routes** | Which corridors need more bus capacity |
-| **Traffic by Day of Week** | Peak days and weekend vs weekday split |
-| **Busiest Stations** | Stations requiring operational attention |
-
-
+| **Daily Revenue Trend** | Revenue performance over the Day In April |
+| **The Busiest Corridor** | Which corridors need more bus capacity |
+| **Total Income Weekend vs Weekday** | People Who Go To Work In Weekday Is The Main Source Of Income |
+| **The Busiest Stops** | Stops requiring operational attention Cause Of The Crowd |
 
 ---
 
@@ -129,6 +129,7 @@ transjakarta-pipeline/
     │   └── stg_transjakarta.sql   # Base staging views (Silver Layer)
     └── marts/                     # Gold Layer
         ├── dim_cards.sql          # Dimension: Cards
+        ├── dim_corridor.sql       # Dimension: Corridor
         ├── dim_date.sql           # Dimension: Calendar
         ├── dim_station.sql        # Dimension: Stations
         ├── fct_transaction.sql    # Fact: Trips
@@ -145,9 +146,7 @@ WITH all_stations AS (
         tap_in_latitude AS station_latitude,
         tap_in_longitude AS station_longitude,
         tap_in_id AS station_id,
-        tap_in_name AS station_name,
-        corridor_id,
-        corridor_name
+        tap_in_name AS station_name
     FROM {{ ref('stg_transjakarta') }}
 
     UNION ALL
@@ -157,9 +156,7 @@ WITH all_stations AS (
         tap_out_latitude AS station_latitude,
         tap_out_longitude AS station_longitude,
         tap_out_id AS station_id,
-        tap_out_name AS station_name,
-        corridor_id,
-        corridor_name
+        tap_out_name AS station_name
     FROM {{ ref('stg_transjakarta') }}
 ),
 
@@ -172,9 +169,7 @@ deduplicated_station AS (
             ELSE MAX(station_name) 
         END AS station_name,
         MAX(station_latitude) AS station_latitude,
-        MAX(station_longitude) AS station_longitude,
-        MAX(corridor_id) AS corridor_id,
-        MAX(corridor_name) AS corridor_name
+        MAX(station_longitude) AS station_longitude
     FROM all_stations
     WHERE station_id IS NOT NULL
     GROUP BY station_id
@@ -185,7 +180,23 @@ SELECT * FROM deduplicated_station
 
 ---
 
-### 2. `models/marts/dim_date.sql`
+### 2. `models/marts/dim_corridor.sql`
+```sql
+WITH deduplicated_corridors AS (
+    SELECT 
+        corridor_id, 
+        MAX(corridor_name) AS corridor_name
+    FROM {{ ref('stg_transjakarta') }}
+    WHERE corridor_id IS NOT NULL
+    GROUP BY corridor_id
+)
+
+SELECT * FROM deduplicated_corridors
+```
+
+---
+
+### 3. `models/marts/dim_date.sql`
 ```sql
 WITH raw_dates AS (
     SELECT CAST(tap_in_time AS DATE) AS date_day 
@@ -216,13 +227,14 @@ ORDER BY date_key
 
 ---
 
-### 3. `models/marts/fct_transaction.sql`
+### 4. `models/marts/fct_transaction.sql`
 ```sql
 WITH final_facts AS (
     SELECT
         transaction_id,
         card_id,
         CAST(tap_in_time AS DATE) AS date_key,
+        corridor_id,
         tap_in_id,
         tap_out_id,
         customer_gender,
@@ -236,7 +248,7 @@ SELECT * FROM final_facts
 
 ---
 
-### 4. `models/marts/schema.yml`
+### 5. `models/marts/schema.yml`
 ```yaml
 version: 2
 
@@ -257,6 +269,22 @@ models:
                 severity: error
                 store_failures: true
   
+  # --- DIMENSION: CORRIDOR ---
+  - name: dim_corridor
+    description: "dimension table for transit routes"
+    columns:
+      - name: corridor_id
+        description: "the unique ID for every bus route"
+        tests:
+          - unique:
+              config: 
+                severity: error
+                store_failures: true
+          - not_null:
+              config:
+                severity: error
+                store_failures: true
+
   # --- DIMENSION: STATIONS ---
   - name: dim_station
     description: "dimension table for every station"
@@ -316,6 +344,14 @@ models:
                 severity: warn
                 store_failures: true
                 
+      - name: corridor_id
+        tests:
+          - not_null       
+          - relationships: 
+              arguments:
+                to: ref('dim_corridor')
+                field: corridor_id
+
       - name: tap_in_id
         tests:
           - not_null       
@@ -330,30 +366,3 @@ models:
           - relationships: 
               arguments:
                 to: ref('dim_station')
-                field: station_id
-                
-      - name: date_key
-        tests:
-          - not_null       
-          - relationships: 
-              arguments:
-                to: ref('dim_date')
-                field: date_key
-                
-      - name: payment_amount
-        tests:
-          - not_null:
-              config:
-                severity: error
-                store_failures: true
-```
-
----
-
-## Author
-
-**Kennys** — Aspiring Data Engineer based in Tangerang, Indonesia.
-Transitioning into MLOps by building production-grade, tested, and scalable data architectures.
-
-[![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat&logo=github&logoColor=white)](https://github.com/kennys21)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/Kennys1)
