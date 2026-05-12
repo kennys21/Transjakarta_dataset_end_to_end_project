@@ -5,7 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    env_file: .env
+    env_file: 
+      - .env
     environment:
       - DATABRICKS_HOST=${DATABRICKS_HOST}
       - DATABRICKS_HTTP_PATH=${DATABRICKS_HTTP_PATH}
