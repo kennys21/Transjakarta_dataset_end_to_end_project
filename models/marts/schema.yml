@@ -79,18 +79,21 @@ models:
       - name: tap_in_id
         tests:
           - not_null       
-          - relationships: 
-              arguments:     # <-- And it goes here for relations
+          - relationships_not_null_safe: 
+              arguments:    
                 to: ref('dim_station')
                 field: station_id
-                
+                config:
+                  where: "tap_in_id IS NOT NULL"
       - name: tap_out_id
         tests:
           - not_null       
-          - relationships: 
-              arguments:     # <-- And here
+          - relationships_not_null_safe: 
+              arguments:     
                 to: ref('dim_station')
                 field: station_id
+                config:
+                  where: "tap_out_id IS NOT NULL"
                 
       - name: date_key
         tests:

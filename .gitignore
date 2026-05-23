@@ -7,3 +7,6 @@ dbt_internal_packages/
 profiles.yml
 .env
 
+# python
+dbt-env/
+__pycache__/

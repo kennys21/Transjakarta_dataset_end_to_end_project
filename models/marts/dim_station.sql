@@ -8,6 +8,7 @@ with all_stations as(
         corridor_name
         
     from {{ref("stg_transjakarta")}}
+    where tap_in_id IS NOT NULL
 
     UNION ALL
 
@@ -20,6 +21,7 @@ with all_stations as(
         corridor_id,
         corridor_name
     from {{ref("stg_transjakarta")}}
+    where tap_out_id IS NOT NULL
 ),
 deduplicated_station as(
     SELECT
