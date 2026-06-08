@@ -1,8 +1,0 @@
-version: 2
-
-sources:
-  - name: transjakarta
-    catalog: transjakarta_dataset  
-    schema: bronze
-    tables:
-      - name: transjakarta_raw_full
