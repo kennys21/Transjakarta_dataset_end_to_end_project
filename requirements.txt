@@ -1,4 +1,0 @@
-dbt-core
-dbt-databricks
-apache-airflow-providers-databricks
-astronomer-cosmos

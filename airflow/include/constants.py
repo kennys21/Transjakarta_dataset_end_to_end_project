@@ -1,7 +1,7 @@
 from pathlib import Path
 
-# Absolute path to your dbt project inside include/
-DBT_PROJECT_PATH = Path(__file__).parent / "dbt" 
+# Absolute path to dbt project mounted into the container
+DBT_PROJECT_PATH = Path("/usr/local/airflow/dbt")
 
 # Path to dbt executable inside the venv Cosmos will use
-DBT_EXECUTABLE_PATH = Path(__file__).parent / "dbt_venv" / "Scripts" / "dbt"
+DBT_EXECUTABLE_PATH = Path("/usr/local/airflow/dbt_venv/bin/dbt")
