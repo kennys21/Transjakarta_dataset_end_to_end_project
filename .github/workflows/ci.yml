@@ -85,6 +85,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Copy dbt project into airflow build context
+        run: cp -r dbt airflow/dbt
+
       - name: Build airflow image (no push)
         run: docker build -t transjakarta-airflow-ci ./airflow
 
