@@ -44,9 +44,9 @@ jobs:
         working-directory: dbt
         run: dbt deps
 
-      - name: dbt compile (validates SQL/Jinja, generates manifest.json)
+      - name: dbt parse (validates SQL/Jinja, generates manifest.json Offline)
         working-directory: dbt
-        run: dbt compile --target ci
+        run: dbt parse --target ci
 
       - name: Upload generated manifest.json as artifact
         uses: actions/upload-artifact@v4
