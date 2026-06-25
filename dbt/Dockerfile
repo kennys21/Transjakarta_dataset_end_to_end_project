@@ -22,7 +22,8 @@ COPY requirements.txt requirements.txt
 
 RUN pip install -r requirements.txt 
 
-COPY profiles.yml /root/.dbt/profiles.yml
+COPY profiles.template.yml /root/.dbt/profiles.yml
+
 
 COPY . /app
 

@@ -5,3 +5,5 @@ RUN python -m venv dbt_venv && source dbt_venv/bin/activate && \
 
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
+
+COPY dbt/ /usr/local/airflow/dbt/

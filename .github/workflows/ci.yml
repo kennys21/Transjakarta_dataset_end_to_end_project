@@ -71,6 +71,9 @@ jobs:
       - name: Install Astro CLI
         run: curl -sSL install.astronomer.io | sudo bash -s
 
+      - name: Copy dbt project into airflow build context
+        run: cp -r dbt airflow/dbt  
+      
       - name: Run astro dev parse (builds the real Dockerfile image, checks DAG)
         working-directory: airflow
         run: astro dev parse
