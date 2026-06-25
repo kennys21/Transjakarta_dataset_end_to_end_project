@@ -1,0 +1,89 @@
+name: CI - Validate dbt, DAG, and Docker builds
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-dbt:
+    name: Validate dbt models (compile only, no real Databricks writes)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt-databricks
+        run: pip install dbt-databricks==1.9.3
+
+      - name: Write dummy profiles.yml for compile-only validation
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          transjakarta_dataset:
+            target: ci
+            outputs:
+              ci:
+                type: databricks
+                catalog: transjakarta_dataset
+                schema: dbt_kennys21
+                host: dummy-host.cloud.databricks.com
+                http_path: /sql/1.0/warehouses/dummy
+                token: dummy-token
+                threads: 1
+          EOF
+
+      - name: dbt deps
+        working-directory: dbt
+        run: dbt deps
+
+      - name: dbt compile (validates SQL/Jinja, generates manifest.json)
+        working-directory: dbt
+        run: dbt compile --target ci
+
+      - name: Upload generated manifest.json as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-manifest
+          path: dbt/target/manifest.json
+
+  validate-dag:
+    name: Validate Airflow DAG via astro dev parse
+    runs-on: ubuntu-latest
+    needs: validate-dbt
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download manifest.json from previous job
+        uses: actions/download-artifact@v4
+        with:
+          name: dbt-manifest
+          path: dbt/target
+
+      - name: Install Astro CLI
+        run: curl -sSL install.astronomer.io | sudo bash -s
+
+      - name: Run astro dev parse (builds the real Dockerfile image, checks DAG)
+        working-directory: airflow
+        run: astro dev parse
+
+  validate-docker:
+    name: Validate Docker images build successfully
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build airflow image (no push)
+        run: docker build -t transjakarta-airflow-ci ./airflow
+
+      - name: Build dbt image (no push)
+        run: docker build -t transjakarta-dbt-ci ./dbt
