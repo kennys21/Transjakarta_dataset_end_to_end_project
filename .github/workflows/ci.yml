@@ -44,9 +44,9 @@ jobs:
         working-directory: dbt
         run: dbt deps
 
-      - name: dbt compile (validates SQL/Jinja, generates manifest.json)
+      - name: dbt parse (validates SQL/Jinja, generates manifest.json Offline)
         working-directory: dbt
-        run: dbt compile --target ci
+        run: dbt parse --target ci
 
       - name: Upload generated manifest.json as artifact
         uses: actions/upload-artifact@v4
@@ -71,6 +71,9 @@ jobs:
       - name: Install Astro CLI
         run: curl -sSL install.astronomer.io | sudo bash -s
 
+      - name: Copy dbt project into airflow build context
+        run: cp -r dbt airflow/dbt  
+      
       - name: Run astro dev parse (builds the real Dockerfile image, checks DAG)
         working-directory: airflow
         run: astro dev parse
@@ -81,6 +84,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Copy dbt project into airflow build context
+        run: cp -r dbt airflow/dbt
 
       - name: Build airflow image (no push)
         run: docker build -t transjakarta-airflow-ci ./airflow
